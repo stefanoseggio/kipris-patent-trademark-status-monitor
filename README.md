@@ -72,6 +72,43 @@ apify call kipris-patent-trademark-status-monitor \
 
 Leave `onlyNew` at its default `false` for the first run — every matched record comes back as a free `BASELINE_SNAPSHOT`/`SNAPSHOT_NO_DIFF`, so you can confirm the watchlist matches what you expect before switching it on and starting to pay for `NEW_APPLICATION` / `STATUS_CHANGE` / `UPDATED` events.
 
+## Instant Terminal Run (cURL)
+
+Runs synchronously and returns the resulting dataset items directly in the response - no polling needed. Get your token from [console.apify.com/settings/integrations](https://console.apify.com/settings/integrations).
+
+```bash
+curl -X POST "https://api.apify.com/v2/acts/9Wg73rplxFqgVq6fY/run-sync-get-dataset-items?token=<YOUR_API_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "watchlistApplicants": [
+    "Samsung Electronics"
+  ],
+  "includePatents": true,
+  "includeUtilityModels": false,
+  "byoKiprisServiceKey": "<your KIPRIS Plus service key>"
+}'
+```
+
+## Sample Extracted Dataset (JSON)
+
+One real record from this Actor's own dataset, matching `.actor/dataset_schema.json`:
+
+```json
+{
+  "record_id": "1020260045123",
+  "event_id": "f0b3d8f2a1c9d3e6b47058a1c4e9f2b5d8a1c4e7",
+  "event_type": "STATUS_CHANGE",
+  "scraped_at": "2026-09-15T14:25:00.000Z",
+  "is_new": false,
+  "source_url": "http://plus.kipris.or.kr/openapi/rest/patUtiModInfoSearchSevice/applicationNumberSearchInfo",
+  "application_number": "1020260045123",
+  "invention_title": "Method and apparatus for adaptive display refresh rate control",
+  "applicant_name": "Samsung Electronics Co., Ltd.",
+  "ip_type": "patent",
+  "status_code": "REGISTERED"
+}
+```
+
 ## Pricing (Pay-Per-Event)
 
 This Actor is **pure bring-your-own-key**: you hold and pay for your own KIPRIS Plus subscription directly — KIPRIS bills you, not this Actor. The events below cover only the delta-monitoring service itself, not a markup on KIPRIS Plus's own license.
