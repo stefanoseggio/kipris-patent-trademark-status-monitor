@@ -2,12 +2,12 @@
 
 # KIPRIS Patent & Trademark Status-Change Monitor
 
-**Bring-your-own-key delta monitoring for Korean patent and utility-model filings on KIPRIS Plus — get an event the moment a tracked application's status changes, never a KIPRIS Plus license markup. Pay-per-event, $0.00 on unchanged runs.**
+**Bring-your-own-key delta monitoring for Korean (KIPRIS Plus) patent and utility-model filings — get an event the moment a tracked application's status changes, on whatever Apify schedule you configure, never a KIPRIS Plus license markup. Pay-per-event, $0.00 on unchanged runs.**
 
 [![Apify Store](https://img.shields.io/badge/Apify%20Store-View%20Listing-FF9012?style=for-the-badge&logo=apify&logoColor=white)](https://apify.com/stefano_seggio/kipris-patent-trademark-status-monitor)
-[![Pay-Per-Event](https://img.shields.io/badge/Pay--Per--Event-from%20%240.008-brightgreen?style=for-the-badge)](#pricing-pay-per-event)
+[![Pay-Per-Event](https://img.shields.io/badge/Pay--Per--Event-from%20%240.008-brightgreen?style=for-the-badge)](#cost--byok-disclosure)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](#license)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
 [![Delta Engine Verified](https://img.shields.io/badge/Delta%20Engine-Verified-1a1a2e?style=for-the-badge)](#architecture)
 
 </div>
@@ -60,7 +60,7 @@ Cold start is per-watchlist-entry, not a single global flag: adding a new applic
 ## Quick start
 
 1. Get an Apify API token from [console.apify.com/settings/integrations](https://console.apify.com/settings/integrations).
-2. Have your own KIPRIS Plus service key ready — register directly with KIPRIS (see [Pricing](#pricing-pay-per-event) below for why this Actor requires it).
+2. Have your own KIPRIS Plus service key ready — register directly with KIPRIS (see [Cost & BYOK Disclosure](#cost--byok-disclosure) below for why this Actor requires it).
 3. Run it with the input schema below, leaving `onlyNew` at its default `false` for the first run — every matched record comes back as a free `BASELINE_SNAPSHOT`/`SNAPSHOT_NO_DIFF`, so you can confirm the watchlist matches what you expect before switching it on.
 
 ```json
@@ -108,10 +108,36 @@ for item in client.dataset(run["defaultDatasetId"]).iterate_items():
     print(item)
 ```
 
+A full, runnable copy of this script lives at [`examples/run_kipris_monitor.py`](examples/run_kipris_monitor.py).
+
+### Node.js — `apify-client` SDK
+
+```js
+import { ApifyClient } from 'apify-client';
+
+const client = new ApifyClient({ token: process.env.APIFY_TOKEN });
+
+const input = {
+  watchlistApplicants: ['Samsung Electronics'],
+  includePatents: true,
+  includeUtilityModels: false,
+  byoKiprisServiceKey: process.env.KIPRIS_PLUS_SERVICE_KEY,
+};
+
+const run = await client.actor('9Wg73rplxFqgVq6fY').call(input);
+const { items } = await client.dataset(run.defaultDatasetId).listItems();
+
+for (const item of items) {
+  console.log(item);
+}
+```
+
+A full, runnable copy of this script lives at [`examples/run-kipris-monitor.js`](examples/run-kipris-monitor.js).
+
 ### Apify CLI
 
 ```bash
-apify call kipris-patent-trademark-status-monitor \
+apify call stefano_seggio/kipris-patent-trademark-status-monitor \
   --input '{
     "watchlistApplicants": ["Hanbit Electronics Co., Ltd."],
     "watchlistApplicationNumbers": ["1020220114820"],
@@ -122,7 +148,28 @@ apify call kipris-patent-trademark-status-monitor \
   }'
 ```
 
-## Sample output record
+## Input & Output Schema
+
+This repository is a documentation and integration wrapper (see [License](#license) below), so there is no `.actor/input_schema.json` checked into GitHub — the fields below are the real ones used throughout the Quickstart examples above and the Features table.
+
+### Input
+
+| Field | Type | Description |
+|---|---|---|
+| `watchlistApplicants` | string[] | Applicant/company names to track (Korean or English), matched against KIPRIS Plus's applicant-name search field. |
+| `watchlistApplicationNumbers` | string[] | Exact KIPO-format application numbers to track individually, e.g. `1020220114820`. |
+| `includePatents` | boolean | Include patent filings in the watchlist walk. |
+| `includeUtilityModels` | boolean | Include utility-model filings in the watchlist walk. |
+| `onlyNew` | boolean | Delta mode. Default `false`: every matched record returns as a free `BASELINE_SNAPSHOT`/`SNAPSHOT_NO_DIFF`. Set `true` to persist seen-record state and start paying only for genuine `NEW_APPLICATION`/`STATUS_CHANGE`/`UPDATED` events. |
+| `byoKiprisServiceKey` | string | **Required.** Your own KIPRIS Plus service key — see [Cost & BYOK Disclosure](#cost--byok-disclosure) above. |
+| `maxItemsPerWatchlistEntry` | integer | Bounds how many records KIPRIS Plus can return for any single watchlist entry in one run. |
+| `deltaStateName` | string | Names the delta-state memory so multiple watchlists' baselines stay isolated from each other. |
+| `resetState` | boolean | Clears the named delta state and re-baselines it from scratch. |
+| `requestDelayMs` | integer | Pacing delay between KIPRIS Plus requests. |
+| `maxRetries` | integer | Retry budget for 429/5xx responses from KIPRIS Plus. |
+| `requestTimeoutSecs` | integer | Per-request timeout against KIPRIS Plus. |
+
+### Output
 
 One real record shape from this Actor's dataset, matching `.actor/dataset_schema.json`:
 
@@ -144,9 +191,27 @@ One real record shape from this Actor's dataset, matching `.actor/dataset_schema
 
 `event_type` tells you immediately whether this is a fresh baseline, a new filing, a status change, or a non-status update — see [Architecture](#architecture) for exactly which of those triggers billing.
 
-## Pricing (Pay-Per-Event)
+| Field | Description |
+|---|---|
+| `record_id` | Stable identifier for this filing, same value as `application_number`. |
+| `event_id` | SHA-256-derived fingerprint identifying this specific delta event. |
+| `event_type` | `BASELINE_SNAPSHOT`, `NEW_APPLICATION`, `STATUS_CHANGE`, `UPDATED`, or `SNAPSHOT_NO_DIFF` — see [Architecture](#architecture) above. |
+| `scraped_at` | ISO-8601 UTC timestamp of this extraction. |
+| `is_new` | `true` when this filing was never delivered by a previous run of this delta state. |
+| `source_url` | The KIPRIS Plus endpoint this record was retrieved from. |
+| `application_number` | KIPO-format application number. |
+| `invention_title` | Filing title as registered with KIPRIS. |
+| `applicant_name` | Applicant/company name as registered with KIPRIS. |
+| `ip_type` | `patent` or `utility_model`. |
+| `status_code` | Normalized status: `FILED`, `PUBLISHED`, `REGISTERED`, `REJECTED`, `WITHDRAWN`, or `UNKNOWN`. |
 
-This Actor is **pure bring-your-own-key**: you hold and pay for your own KIPRIS Plus subscription directly — KIPRIS bills you, not this Actor. The events below cover only the delta-monitoring service itself, not a markup on KIPRIS Plus's own license.
+As disclosed above, these output field names are modeled on a third-party reference implementation, not independently confirmed against a real successful KIPRIS Plus response — see [the verification disclosure](#an-important-upfront-disclosure-about-this-builds-verification).
+
+## Cost & BYOK Disclosure
+
+**BYOK status: required.** This is the fleet's flagship bring-your-own-key example — it cannot run at all without your own **KIPRIS Plus service key**, a paid annual license billed directly by KIPRIS, never pooled or resold. This Actor is **pure bring-your-own-key**: you hold and pay for your own KIPRIS Plus subscription directly — KIPRIS bills you, not this Actor. The events below cover only the delta-monitoring service itself, not a markup on KIPRIS Plus's own license.
+
+Privacy and no-pooling, stated plainly: your `byoKiprisServiceKey` is used only to call KIPRIS Plus on your behalf for the watchlist entries you configure, is never logged in plaintext, and is never shared or pooled with any other customer's key or run. Each customer's KIPRIS Plus usage is billed by KIPRIS to that customer's own account.
 
 | Event | Price | Charged when |
 |---|---|---|
@@ -192,6 +257,16 @@ The transport layer retries 429/5xx responses with backoff (`maxRetries`, config
 ## Support & Enterprise SLA
 
 Independently developed and maintained by Stefano Seggio — not a managed enterprise product, and there is no contractual uptime SLA. Issues and feature requests: open an issue against this Actor's Store listing. Typical triage time: within 48 hours.
+
+## Contributing & Local Setup
+
+This repository is a **documentation and integration wrapper**: it holds the README, license, and integration examples (`examples/`), but not the Actor's proprietary monitoring logic (`kiprisClient.ts`, `deltaEngine.ts`, `main.ts`, etc.), which runs privately on Apify's platform and is not checked into GitHub. There is no `src/`, `package.json`, or buildable project here — cloning this repo will not give you a runnable copy of the KIPRIS client or delta-engine logic.
+
+What you *can* do here:
+- Open an issue or PR against the documentation, the `examples/` scripts, or this README — including, per the verification disclosure above, a correction to the output field names once someone runs this against a real paid KIPRIS Plus key and confirms the actual response shape.
+- Run the actual Actor against your own KIPRIS Plus key via the Apify Console, CLI, or API, as shown in Quickstart above — that always runs the real, currently-deployed logic, not a local copy.
+
+Bug reports and feature requests for the Actor's behavior itself are best filed through the Apify Store **Issues** tab on the [Store listing](https://apify.com/stefano_seggio/kipris-patent-trademark-status-monitor), since that is where paying users of the published Actor already are.
 
 ## License
 
