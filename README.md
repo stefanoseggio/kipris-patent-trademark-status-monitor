@@ -4,6 +4,7 @@
 
 **Bring-your-own-key delta monitoring for Korean (KIPRIS Plus) patent and utility-model filings — get an event the moment a tracked application's status changes, on whatever Apify schedule you configure, never a KIPRIS Plus license markup. Pay-per-event, $0.00 on unchanged runs.**
 
+[![Run on Apify Store](https://img.shields.io/badge/Run%20on-Apify%20Store-FF9012?style=for-the-badge&logo=apify&logoColor=white)](https://apify.com/stefano_seggio/kipris-patent-trademark-status-monitor)
 [![Apify Store](https://img.shields.io/badge/Apify%20Store-View%20Listing-FF9012?style=for-the-badge&logo=apify&logoColor=white)](https://apify.com/stefano_seggio/kipris-patent-trademark-status-monitor)
 [![Pay-Per-Event](https://img.shields.io/badge/Pay--Per--Event-from%20%240.008-brightgreen?style=for-the-badge)](#cost--byok-disclosure)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -148,6 +149,61 @@ apify call stefano_seggio/kipris-patent-trademark-status-monitor \
   }'
 ```
 
+## Use this from Claude Desktop, Cursor, or Windsurf (via MCP)
+
+This Actor is also reachable as an MCP server through Apify's own hosted `@apify/actors-mcp-server`, scoped to just this Actor via a `?tools=` query string - not the full Delta Registry fleet.
+
+**Claude Desktop** (via the `mcp-remote` stdio bridge):
+
+```json
+{
+  "mcpServers": {
+    "delta-registry-kipris-patent-trademark-status-monitor": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.apify.com/?tools=stefano_seggio/kipris-patent-trademark-status-monitor",
+        "--header",
+        "Authorization: Bearer ${APIFY_TOKEN}"
+      ]
+    }
+  }
+}
+```
+
+**Cursor** (native HTTP transport):
+
+```json
+{
+  "mcpServers": {
+    "delta-registry-kipris-patent-trademark-status-monitor": {
+      "url": "https://mcp.apify.com/?tools=stefano_seggio/kipris-patent-trademark-status-monitor",
+      "headers": {
+        "Authorization": "Bearer ${APIFY_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+**Windsurf** (uses `serverUrl`, not `url`):
+
+```json
+{
+  "mcpServers": {
+    "delta-registry-kipris-patent-trademark-status-monitor": {
+      "serverUrl": "https://mcp.apify.com/?tools=stefano_seggio/kipris-patent-trademark-status-monitor",
+      "headers": {
+        "Authorization": "Bearer ${env:APIFY_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Replace `${APIFY_TOKEN}` with a real token from [Apify Console → Settings → Integrations](https://console.apify.com/settings/integrations). Note that `mcp-remote` does not expand shell environment variables inside the JSON string itself - paste the literal token and keep this file out of version control; Windsurf's `${env:APIFY_TOKEN}` genuinely does resolve from your environment. For the full 28-actor Delta Registry MCP configuration across all three clients, see [MCP_INTEGRATION.md](https://github.com/stefanoseggio/delta-registry-website/blob/main/MCP_INTEGRATION.md).
+
 ## Input & Output Schema
 
 This repository is a documentation and integration wrapper (see [License](#license) below), so there is no `.actor/input_schema.json` checked into GitHub — the fields below are the real ones used throughout the Quickstart examples above and the Features table.
@@ -204,6 +260,11 @@ One real record shape from this Actor's dataset, matching `.actor/dataset_schema
 | `applicant_name` | Applicant/company name as registered with KIPRIS. |
 | `ip_type` | `patent` or `utility_model`. |
 | `status_code` | Normalized status: `FILED`, `PUBLISHED`, `REGISTERED`, `REJECTED`, `WITHDRAWN`, or `UNKNOWN`. |
+| `status_description_raw` | Raw, un-normalized status description text as returned by KIPRIS Plus, when available. |
+| `application_date` | The filing's application date as recorded with KIPRIS, when available. |
+| `changed_fields` | On `UPDATED` events, the list of non-status fields that changed since the previous run. |
+| `content_fingerprint` | Internal SHA-256 content fingerprint used to detect non-status changes across runs. |
+| `watchlist_entry` | The specific watchlist entry (applicant name or application number) that matched this record. |
 
 As disclosed above, these output field names are modeled on a third-party reference implementation, not independently confirmed against a real successful KIPRIS Plus response — see [the verification disclosure](#an-important-upfront-disclosure-about-this-builds-verification).
 
